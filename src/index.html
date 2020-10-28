@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1 maximum-scale=1 user-scalable=no">
+    <title>Boat</title>
+    <style>
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: rgba(65, 105, 225, 0);
+        }
+
+        #info {
+            margin-bottom: 1%;
+        }
+
+        #info.connected {
+            background-color: rgb(65, 105, 225);
+            color: white;
+        }
+
+        #info.disconnected {
+            background-color: rgb(220, 20, 60);
+            color: white;
+        }
+
+        .hide {
+            display: none;
+        }
+
+        #settings-link {
+            float: right;
+            padding-right: 1%;
+        }
+
+        #control-block {
+            width: 100%;
+            height: 95%;
+            border: 3px dashed;
+
+            border-radius: 10px;
+            box-sizing: border-box;
+            -moz-box-sizing: border-box;
+            -webkit-box-sizing: border-box;
+        }
+
+        #control-block.connected {
+            border-color: rgb(65, 105, 225);
+        }
+
+        #control-block.disconnected {
+            border-color: rgb(220, 20, 60);
+        }
+
+        a {
+            color: white;
+        }
+
+        a:visited {
+            color: white;
+        }
+
+    </style>
+</head>
+
+<body>
+<div id="info" class="disconnected">
+    <span>[v1.1]</span>
+    <span id="status">Disconnected</span>
+    <span id="coords">(0/0)</span>
+    <a href="javascript:toSettingsLink()" id="settings-link">settings</a>
+    <input type="hidden" id="settings">
+</div>
+<div id="settings-block" class="hide">
+    <table>
+        <tr>
+            <td>
+                <label for="auto-move">Auto move</label>
+            </td>
+            <td>
+                <select id="auto-move">
+                    <option value="1">on</option>
+                    <option value="0" selected>off</option>
+                </select>
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="auto-speed">Auto speed(%)</label>
+            </td>
+            <td>
+                <input type="number" id="auto-speed" value="0">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="move-interval">Move interval(ms)</label>
+            </td>
+            <td>
+                <input type="number" id="move-interval" value="50">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="move-timeout">Move timeout(ms)</label>
+            </td>
+            <td>
+                <input type="number" id="move-timeout" value="600">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="emergency-timeout">Emergency timeout(ms)</label>
+            </td>
+            <td>
+                <input type="number" id="emergency-timeout" value="240000">
+            </td>
+        </tr>
+        <tr>
+            <td>
+                <label for="debug">Debug</label>
+            </td>
+            <td>
+                <select id="debug">
+                    <option value="1">on</option>
+                    <option value="0" selected>off</option>
+                </select>
+            </td>
+        </tr>
+    </table>
+</div>
+<div id="debug-block"></div>
+<div id="control-block" class="disconnected"></div>
+</body>
+
+<script>
+    let encodeQueryData = function(data) {
+        const ret = [];
+        for (let d in data) {
+            if (!data.hasOwnProperty(d)) {
+                continue;
+            }
+
+            ret.push(encodeURIComponent(d) + '=' + encodeURIComponent(data[d]));
+        }
+        return ret.join('&');
+    };
+
+    let updateQueryParametersFromElements = function() {
+        let data = {};
+        ['auto-speed', 'move-interval', 'move-timeout', 'emergency-timeout', 'settings'].forEach(function(val) {
+            data[val] = document.getElementById(val).value;
+        });
+        let autoMoveElement = document.getElementById('auto-move');
+        data['auto-move']   = autoMoveElement.options[autoMoveElement.selectedIndex].value;
+
+        let debugElement = document.getElementById('debug');
+        data['debug']    = debugElement.options[debugElement.selectedIndex].value;
+
+        window.history.pushState('page', 'Boat', '?' + encodeQueryData(data));
+        parameters = new URLSearchParams(window.location.search);
+    };
+
+    let updateElementsFromQueryParameters = function() {
+        let parameters = new URLSearchParams(window.location.search);
+        ['auto-move', 'auto-speed', 'move-interval', 'move-timeout', 'emergency-timeout', 'debug', 'settings'].forEach(
+            function(val) {
+                if (parameters.has(val)) {
+                    document.getElementById(val).value = parameters.get(val);
+                }
+            });
+
+        if (parameters.has('settings') && parseInt(parameters.get('settings')) === 1) {
+            settingsBlockElement.className = '';
+            settingsLinkElement.innerText  = 'hide';
+        }
+    };
+
+    let attachEventListeners = function() {
+        ['auto-move', 'auto-speed', 'move-interval', 'move-timeout', 'emergency-timeout', 'debug'].forEach(
+            function(val) {
+                document.getElementById(val).addEventListener('change', function() {
+                    updateQueryParametersFromElements();
+                });
+            });
+
+        document.getElementById('move-interval').addEventListener('change', function() {
+            initInterval();
+        });
+
+        controlBlockElement.addEventListener('touchforcechange', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }, {passive: false});
+
+        controlBlockElement.addEventListener('touchstart', function(e) {
+            active = true;
+            e.preventDefault();
+            e.stopPropagation();
+            coords = mathCoords(e);
+            showCoords(coords);
+            drawBackground(coords);
+        }, {passive: false});
+
+        controlBlockElement.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            active = true;
+            coords = mathCoords(e);
+            showCoords(coords);
+            drawBackground(coords);
+        }, {passive: false});
+
+        controlBlockElement.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            active   = false;
+            coords.x = 0;
+            coords.y = 0;
+        }, {passive: false});
+
+        window.onerror = function(error, url, line) {
+            debug(JSON.stringify({error: error, url: url, line: line}));
+        };
+    };
+
+    let debug = function(message) {
+        if (parseInt(parameters.get('debug')) === 0) {
+            return;
+        }
+
+        let block       = document.createElement('div');
+        block.innerText = Date.now() + ' ' + message;
+        debugBlockElement.appendChild(block);
+
+        while (debugBlockElement.children.length > 10) {
+            debugBlockElement.removeChild(debugBlockElement.firstChild);
+        }
+    };
+
+    let connect = function() {
+        ws           = new WebSocket('ws://192.168.4.1/ws');
+        ws.onopen    = function(e) {
+            showStatus(true);
+            debug('WS Connected');
+        };
+        ws.onclose   = function(e) {
+            showStatus(false);
+            debug('WS Closed' + JSON.stringify(e));
+        };
+        ws.onmessage = function(e) {
+            debug('WS Message' + e.data);
+        };
+        ws.onerror   = function(e) {
+            showStatus(false);
+            debug('WS Error' + JSON.stringify(e));
+        };
+    };
+
+    let showStatus = function(connected) {
+        if (connected) {
+            statusElement.innerText       = 'Connected';
+            infoElement.className         = 'connected';
+            controlBlockElement.className = 'connected';
+        } else {
+            statusElement.innerText       = 'Disconnected';
+            infoElement.className         = 'disconnected';
+            controlBlockElement.className = 'disconnected';
+        }
+    };
+
+    let showCoords = function({x, y}) {
+        coordsElement.innerText = '(' + x + '/' + y + ')';
+    };
+
+    let move = function({x, y}) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+
+            debug('WS Send ' + JSON.stringify({x: x, y: y}));
+
+            let data = {
+                x:                x,
+                y:                y,
+                moveInterval:     parseInt(parameters.get('move-interval')),
+                moveTimeout:      parseInt(parameters.get('move-timeout')),
+                emergencyTimeout: parseInt(parameters.get('emergency-timeout')),
+                active:           active,
+            };
+
+            ws.send(JSON.stringify(data));
+        }
+    };
+
+    let mathCoords = function(event) {
+        let touchobj = event.targetTouches[event.targetTouches.length - 1];
+
+        let touchX = touchobj.clientX;
+        let touchY = touchobj.clientY;
+
+        let windowWidthHalf = window.innerWidth / 2;
+        let windowHeight    = window.innerHeight;
+
+        let x = parseInt((touchX > windowWidthHalf ? touchX - windowWidthHalf : (windowWidthHalf - touchX) * -1) * 100 /
+            windowWidthHalf);
+        let y = parseInt((windowHeight - touchY) * 100 / windowHeight);
+
+        if (parseInt(parameters.get('auto-move')) === 1 && active) {
+            y = parseInt(parameters.get('auto-speed'));
+        }
+
+        return {x: x, y: y};
+    };
+
+    let drawBackground = function({x, y}) {
+
+        let absX     = Math.abs(x);
+        let absY     = Math.abs(y);
+        let maxValue = absX > absY ? absX : absY;
+
+        controlBlockElement.style.backgroundColor = 'rgba(65, 105, 225,' + (maxValue / 100).toFixed(2) + ')';
+
+        if (maxValue === 0) {
+            controlBlockElement.style.transition = 'background-color 300ms linear';
+        } else {
+            controlBlockElement.style.transition = '';
+        }
+    };
+
+    let initInterval = function() {
+        if (interval) {
+            clearInterval(interval);
+        }
+
+        let moveInterval = parseInt(parameters.get('move-interval'));
+        interval         = setInterval(function() {
+
+            showCoords(coords);
+            drawBackground(coords);
+            move({x: coords.x, y: coords.y, active: active});
+        }, moveInterval);
+    };
+
+    let toSettingsLink = function() {
+        let parameters = new URLSearchParams(window.location.search);
+
+        if (parseInt(parameters.get('settings')) === 1) {
+            parameters.set('settings', '0');
+        } else {
+            parameters.set('settings', '1');
+        }
+
+        window.location.search = '?' + parameters.toString();
+    };
+
+    let parameters = new URLSearchParams(window.location.search);
+    let active     = false;
+    let interval   = null;
+    let coords     = {x: 0, y: 0};
+
+    let controlBlockElement  = document.getElementById('control-block');
+    let coordsElement        = document.getElementById('coords');
+    let infoElement          = document.getElementById('info');
+    let statusElement        = document.getElementById('status');
+    let debugBlockElement    = document.getElementById('debug-block');
+    let settingsBlockElement = document.getElementById('settings-block');
+    let settingsLinkElement  = document.getElementById('settings-link');
+
+    updateElementsFromQueryParameters();
+    updateQueryParametersFromElements();
+    attachEventListeners();
+    connect();
+    initInterval();
+
+</script>
