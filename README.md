@@ -4,6 +4,7 @@
 [Fusion360 3D models](./models)
 
 ![](./boat.png)
+![](./rudder.png)
 
 ### Schema
 ![](./schema.png)
