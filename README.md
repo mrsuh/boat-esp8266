@@ -1,16 +1,21 @@
 # ESP8266 RC Boat
 
-Required library https://github.com/me-no-dev/ESPAsyncWebServer
+### Required
+* https://github.com/me-no-dev/ESPAsyncWebServer
 
 ### 3D Models
-[Fusion360 3D models](./models)
-[Thingiverse](https://www.thingiverse.com/thing:4786502)
+* [Thingiverse](https://www.thingiverse.com/thing:4786502)
+* [Fusion360 3D models](./models)
 
-![](./boat.png)
-![](./rudder.png)
+### Video
+* [Youtube](https://www.youtube.com/watch?v=2OwbVLAE5oU)
 
 ### Schema
 ![](./schema.png)
 
-### UI
+### Boat
+![](./boat.png)
+![](./rudder.png)
+
+### Mobile UI
 ![](./ui.png)
