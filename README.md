@@ -4,6 +4,7 @@ Required library https://github.com/me-no-dev/ESPAsyncWebServer
 
 ### 3D Models
 [Fusion360 3D models](./models)
+[Thingiverse](https://www.thingiverse.com/thing:4786502)
 
 ![](./boat.png)
 ![](./rudder.png)
